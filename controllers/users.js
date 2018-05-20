@@ -1,9 +1,11 @@
 'use strict'
+var fs = require('fs');
+var path = require('path');
 var bcrypt = require('bcrypt-nodejs');
 var User = require('../models/users');
 var jwt = require('../services/jwt');
 
-function saveUser(req, res){
+function saveUser(req, res) {
     var user = new User();
     var params = req.body;
 
@@ -16,17 +18,17 @@ function saveUser(req, res){
     user.image = 'https://image.freepik.com/free-icon/user-image-with-black-background_318-34564.jpg';
     user.role = 'ROLE_USER';
 
-    if(params.password){
+    if (params.password) {
         bcrypt.hash(params.password, null, null, (err, hash) => {
             user.password = hash;
-            if(user.firstname != null && user.lastname != null && user.email != null){
+            if (user.firstname != null && user.lastname != null && user.email != null) {
                 user.save((err, userStored) => {
-                    if(err){
+                    if (err) {
                         res.status(500).send({
                             message: 'Error when saving the user'
                         });
                     } else {
-                        if(!userStored){
+                        if (!userStored) {
                             res.status(404).send({
                                 message: 'The user has not registered'
                             });
@@ -50,7 +52,7 @@ function saveUser(req, res){
     }
 }
 
-function loginUser (req, res){
+function loginUser(req, res) {
     var params = req.body;
 
     var email = params.email;
@@ -59,46 +61,131 @@ function loginUser (req, res){
     User.findOne({
         email: email.toLowerCase()
     }, (err, user) => {
-       if(err){
-        res.status(500).send({
-            message: "Invalid Email"
-        })
-       } else {
-           if(!user){
-            res.status(404).send({
-                message: "Username does not exist"
+        if (err) {
+            res.status(500).send({
+                message: "Invalid Email"
             })
-           }else{
-            bcrypt.compare(password, user.password, function (err, check){
-                if(check){
-                    if(params.gethash){
-                        res.status(200).send({
-                            token: jwt.createToken(user)
-                        });
+        } else {
+            if (!user) {
+                res.status(404).send({
+                    message: "Username does not exist"
+                })
+            } else {
+                bcrypt.compare(password, user.password, function (err, check) {
+                    if (check) {
+                        if (params.gethash) {
+                            res.status(200).send({
+                                token: jwt.createToken(user)
+                            });
+                        } else {
+                            res.status(200).send({
+                                user
+                            })
+                        }
                     } else {
-                        res.status(200).send({
-                            user
+                        res.status(404).send({
+                            message: "The user could not log in, try again."
                         })
                     }
-                } else {
-                    res.status(404).send({
-                        message: "The user could not log in, try again."
-                    })
-                }
-            })
-           }
-       }
+                })
+            }
+        }
     });
 }
 
-function prueba (req, res){
+function prueba(req, res) {
     res.status(200).send({
-        message:  "Test message"
+        message: "Test message"
     });
+}
+
+function updateUser(req, res) {
+    var userId = req.params.id;
+    var update = req.body;
+
+    User.findByIdAndUpdate(userId, update, (err, userUpdated) => {
+        if (err) {
+            res.status(500).send({
+                message: "Error updating the user."
+            });
+        } else {
+            if (!userUpdated) {
+                res.status(404).send({
+                    message: "The user could not be updated."
+                });
+            } else {
+                res.status(200).send({
+                    user: userUpdated
+                });
+            }
+        }
+    });
+}
+
+function uploadImage(req, res) {
+    var userId = req.params.id;
+    var file_name = 'the file has not been uploaded.';
+
+    if (req.files) {
+        var file_path = req.files.image.path;
+        var file_split = file_path.split('\\');
+        var file_name = file_split[file_split.length - 1];
+
+        var ext_split = file_name.split('\.');
+        var file_ext = ext_split[1];
+
+        if (file_ext == 'jpg' || file_ext == 'png' || file_ext == 'gif' || file_ext == 'jpeg')  {
+            User.findByIdAndUpdate(userId, { image: file_name }, (err, userUpdated) => {
+                if (err) {
+                    res.status(500).send({
+                        message: "Error updating the user."
+                    });
+                } else {
+                    if (!userUpdated) {
+                        res.status(404).send({
+                            message: "The user could not be updated."
+                        });
+                    } else {
+                        res.status(200).send({
+                            user: userUpdated
+                        });
+                    }
+                }
+            });
+        } else {
+            res.status(200).send({
+                message: "File extension not allowed."
+            })
+        }
+
+        console.log(file_ext);
+    } else {
+        res.status(200).send({
+            message: "No image has been uploaded."
+        })
+    }
+}
+
+function getImageFile(req, res){
+    var imageFile = req.params.imageFile;
+    var path_file = './uploads/users/'+imageFile;
+
+    fs.exists(path_file, function (exists){
+        if(exists){
+            res.sendFile(path.resolve(path_file));
+        } else {
+            res.status(200).send({
+                message: 'the image does not exist.'
+            })
+        }
+    })
 }
 
 module.exports = {
     prueba,
     saveUser,
-    loginUser
+    loginUser,
+    updateUser,
+    uploadImage,
+    getImageFile
 };
