@@ -1,1 +1,1 @@
-# syncfyAPI
+# syncfy
